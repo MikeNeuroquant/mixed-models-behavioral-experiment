@@ -1,4 +1,4 @@
-# Measuring how people reallocate attention — a mixed-model analysis of a 30-minute A/B experiment
+# Measuring how people reallocate attention, a mixed-model analysis of a 30-minute A/B experiment
 
 
 ---
@@ -8,28 +8,28 @@
 Every experiment in this repo is built the same way a modern product experimentation team would run one:
 
 - **Randomised assignment** of ~65 participants to three conditions (two "treatment" arms and a control).
-- **Repeated measurements** on the same person across a Pre / During / Post timeline — so we can watch behaviour change *within* a subject, not just across groups.
-- **A crossover manipulation** (each participant does both a real and a sham session, at least a week apart) — the same logic as a within-user A/B test where every user sees both variants.
-- **A behavioural outcome** (accuracy on a moving-target tracking task) recorded at the **single-trial level** — roughly 500+ decisions per person, per session.
+- **Repeated measurements** on the same person across a Pre / During / Post timeline, so we can watch behaviour change *within* a subject, not just across groups.
+- **A crossover manipulation** (each participant does both a real and a sham session, at least a week apart), the same logic as a within-user A/B test where every user sees both variants.
+- **A behavioural outcome** (accuracy on a moving-target tracking task) recorded at the **single-trial level** , roughly 500+ decisions per person, per session.
 
-The core question — *does exposure to condition X change how people behave later?* — is the same question a Quantitative UX Analyst, an Insights Specialist or a Behavioural Scientist asks every week: does a new onboarding flow change retention, does a nudge change conversion, does a UI change trust ratings?
+The core question, *does exposure to condition X change how people behave later?*, is the same question a Quantitative UX Analyst, an Insights Specialist or a Behavioural Scientist asks every week: does a new onboarding flow change retention, does a nudge change conversion, does a UI change trust ratings?
 
 The statistical toolkit is the same too:
 
-- **Generalised Linear Mixed-Effects Models (GLMMs)** on Bernoulli trial-level outcomes, with by-subject random intercepts and random slopes. This is the correct model whenever you have (i) repeated measurements per user and (ii) a binary or count-like outcome — clicks, conversions, task successes, comprehension checks, opt-outs. Ignoring the "same user was measured many times" structure gives you inflated Type-I error and confident-but-wrong conclusions.
+- **Generalised Linear Mixed-Effects Models (GLMMs)** on Bernoulli trial-level outcomes, with by-subject random intercepts and random slopes. This is the correct model whenever you have (i) repeated measurements per user and (ii) a binary or count-like outcome,clicks, conversions, task successes, comprehension checks, opt-outs. Ignoring the "same user was measured many times" structure gives you inflated Type-I error and confident-but-wrong conclusions.
 - **Multi-way interactions** (`Session × Condition × Treatment`) to isolate *when* and *for whom* an effect appears, not just whether it exists on average.
 - **Holm-corrected post-hoc contrasts** via `emmeans` to control false-positive inflation once you start slicing the data.
-- **Effect sizes** (odds ratios, Cohen's *d*) reported alongside p-values, because the practical question is always "how big" — not just "is it real".
+- **Effect sizes** (odds ratios, Cohen's *d*) reported alongside p-values, because the practical question is always "how big"ì, not just "is it real".
 - **Model comparison** (likelihood-ratio tests over candidate random-effect structures) before locking in the reporting model.
 - **A pre-registered outlier rule** (1.5 × IQR at baseline) applied before any inferential step.
 
-That is the modelling stack behind any credible causal claim about individual and group behaviour — inside a lab or inside a product team.
+That is the modelling stack behind any credible causal claim about individual and group behaviour, inside a lab or inside a product team.
 
 ---
 
 ## What the experiment actually did
 
-Participants tracked moving dots on a screen (Multiple Object Tracking, MOT — a canonical measure of sustained visuospatial attention). For 30 minutes they focused only on one side of the screen (their "attended" side), ignoring the other side. Before and after that manipulation, we measured tracking accuracy on both sides.
+Participants tracked moving dots on a screen (Multiple Object Tracking, MOT, a canonical measure of sustained visuospatial attention). For 30 minutes they focused only on one side of the screen (their "attended" side), ignoring the other side. Before and after that manipulation, we measured tracking accuracy on both sides.
 
 Half of them received real electrical brain stimulation over the frontoparietal cortex during the 30 minutes; half received a sham. In one experiment (n = 39) the stimulation was on the right hemisphere; in a second (n = 26) on the left. Same task, same design, only the treatment site changed.
 
@@ -39,7 +39,7 @@ Half of them received real electrical brain stimulation over the frontoparietal 
 ## The three findings, in plain language
 
 **1. Ignoring a side of the screen for 30 minutes makes you *better* at it afterwards.**
-Accuracy on the previously ignored side went *up* at post-test — a homeostatic rebound. Nothing surprising happens on the side you had been attending, and nothing happens in the control group (which tracked both sides equally). So the gain is specifically caused by the imbalance we imposed.
+Accuracy on the previously ignored side went *up* at post-test, a homeostatic rebound. Nothing surprising happens on the side you had been attending, and nothing happens in the control group (which tracked both sides equally). So the gain is specifically caused by the imbalance we imposed.
 
 <p align="center">
   <img src="figures/Figure2.png" alt="Pre vs Post accuracy, right montage" width="600">
@@ -55,7 +55,7 @@ This is the paper's headline result. The same manipulation, delivered under two 
 </p>
 
 **3. During the 30-minute manipulation, the two hemispheres behave in opposite ways.**
-Right stimulation hurts tracking on both sides. Left stimulation improves the ipsilateral side and hurts the contralateral side — a classic contralateral bias that the right hemisphere doesn't show.
+Right stimulation hurts tracking on both sides. Left stimulation improves the ipsilateral side and hurts the contralateral side, a classic contralateral bias that the right hemisphere doesn't show.
 
 <p align="center">
   <img src="figures/Figure5_hemisphere_dissociation.jpg" alt="Ipsi vs contralateral change during isolation" width="600">
