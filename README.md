@@ -70,7 +70,6 @@ Right stimulation hurts tracking on both sides. Left stimulation improves the ip
 
 ```
 tRNS-attentional-isolation/
-├── paper/                        Published PDF + supplementary
 ├── figures/                      Paper figures (PNG for the README, TIF for print)
 ├── preprocessing/                Python — from raw PsychoPy .txt logs to clean CSVs
 │   ├── 01_build_pre_post_dataset.py
