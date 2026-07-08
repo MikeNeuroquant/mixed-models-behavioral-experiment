@@ -1,8 +1,7 @@
 # Measuring how people reallocate attention — a mixed-model analysis of a 30-minute A/B experiment
 
 **Companion repository to Tosi et al. (2026),** *Journal of Cognitive Neuroscience.*
-📄 [Full paper (PDF)]([paper/Tosi_et_al_JCN_revised.pdf](https://pubmed.ncbi.nlm.nih.gov/41870307/)) 
-
+📄 [Full paper (PubMed)](https://pubmed.ncbi.nlm.nih.gov/41870307/)
 ---
 
 ## Why this repository might be interesting outside academia
