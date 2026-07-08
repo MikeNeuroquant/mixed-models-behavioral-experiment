@@ -112,4 +112,4 @@ The same recipe carries over to any product-analytics setting where you have rep
 
 ## Contact
 
-Michele Tosi — [LinkedIn](https://www.linkedin.com/in/michele-tosi-cog/) · [Google Scholar](https://scholar.google.com/)
+Michele Tosi
