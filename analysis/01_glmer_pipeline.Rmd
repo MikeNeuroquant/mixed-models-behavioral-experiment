@@ -1,0 +1,260 @@
+---
+title: "GLMER analysis pipeline — Hemispheric Dissociation via Attentional Isolation and tRNS"
+author: "Michele Tosi"
+output: html_document
+---
+
+# Overview
+
+Generalised linear mixed-effects models (binomial family) on trial-level
+Multiple Object Tracking (MOT) responses (correct = 1, incorrect = 0),
+with by-subject random intercepts and, where appropriate, by-subject
+random slopes for `VisualF`. All post-hoc contrasts are Holm-corrected
+via `emmeans`.
+
+Set `DERIV` below to the folder produced by the `preprocessing/` scripts.
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyverse)
+library(readxl)
+library(lme4)
+library(car)
+library(emmeans)
+library(rstatix)
+library(DHARMa)
+library(performance)
+library(lmtest)
+```
+
+```{r config}
+# Point this at the derivatives folder produced by preprocessing/
+DERIV <- "../derivatives"
+```
+
+# 1. Load data
+
+```{r load}
+my_data       <- read.csv(file.path(DERIV, "long_format_collapsed.csv"))
+dt            <- read.csv(file.path(DERIV, "long_format_single_trial.csv"))
+dt_iso        <- read.csv(file.path(DERIV, "all_isolation_time_split_single_trial.csv"))
+my_data_delta <- read.csv(file.path(DERIV, "delta_long_format_averaged.csv"))
+```
+
+# 2. Outlier removal at baseline
+
+Outliers are detected on Pre-session accuracy within each `Collection`
+(montage cohort) × `VisualF` cell using the standard 1.5×IQR rule
+(`rstatix::identify_outliers`). Flagged subjects are removed from every
+downstream dataset.
+
+```{r outliers}
+outdect <- my_data %>%
+  filter(Session == "Pre") %>%
+  group_by(Collection, VisualF) %>%
+  identify_outliers(Response)
+
+drop_ids <- unique(outdect$Subject)
+
+dt            <- dt            %>% filter(!(Subject %in% drop_ids))
+my_data       <- my_data       %>% filter(!(Subject %in% drop_ids))
+my_data_delta <- my_data_delta %>% filter(!(Subject %in% drop_ids))
+dt_iso        <- dt_iso        %>% filter(!(Subject %in% drop_ids))
+
+# Focus on Pre / Post_1 (Post_2 = 10-min retest, secondary)
+dt_filt <- dt %>% filter(Session != "Post_2")
+dt_filt$manipulation <- NULL
+
+my_data       <- my_data       %>% filter(Session != "Post_2")
+my_data_delta <- my_data_delta %>% filter(Session != "P2")
+my_data_delta <- my_data_delta %>% filter(Manipulation != "Control")
+my_data_delta$manipulation <- NULL
+```
+
+# 3. Baseline check — no pre-test difference between groups
+
+Confirms randomisation worked: pre-test accuracy should not differ by
+Manipulation or Stimulation before the isolation window.
+
+```{r baseline-check}
+fit_0 <- glmer(
+  Response ~ Manipulation * Stimulation + (1 + VisualF | Subject),
+  family  = binomial,
+  data    = dt_filt,
+  subset  = (Session == "Pre" & Collection == 2),
+  control = glmerControl(optimizer = "bobyqa")
+)
+summary(fit_0)
+Anova(fit_0, type = 3)
+```
+
+# 4. Model selection
+
+Fit a family of candidate random-effects structures, then compare with
+likelihood-ratio tests (`anova`). The winning model has a by-subject
+random intercept + random slope for `VisualF`.
+
+```{r model-selection, eval=FALSE}
+fit_alt1 <- glmer(Response ~ Session * Manipulation * Stimulation +
+                    (1 + VisualF | Subject),
+                  family = binomial, data = dt_filt,
+                  control = glmerControl(optimizer = "bobyqa"))
+
+fit_alt2 <- glmer(Response ~ Session * Manipulation * Stimulation * VisualF +
+                    (1 | Subject),
+                  family = binomial, data = dt_filt,
+                  control = glmerControl(optimizer = "bobyqa"))
+
+fit_alt3 <- glmer(Response ~ Session * Manipulation * Stimulation +
+                    (1 | Subject),
+                  family = binomial, data = dt_filt,
+                  control = glmerControl(optimizer = "bobyqa"))
+
+fit_alt4 <- glmer(Response ~ Session * Manipulation * Stimulation +
+                    (1 + Stimulation | Subject),
+                  family = binomial, data = dt_filt,
+                  control = glmerControl(optimizer = "bobyqa"))
+
+anova(fit_alt1, fit_alt2, fit_alt3, fit_alt4)
+```
+
+# 5. Main effect: attentional gain in the ignored visual field
+
+Test the three-way `Session × Manipulation × Stimulation` interaction
+(Experiment 1 = right montage, Collection == 1).
+
+```{r main-model}
+fit_1 <- glmer(
+  Response ~ Session * Manipulation * Stimulation + (1 + VisualF | Subject),
+  family  = binomial,
+  data    = dt_filt,
+  subset  = (Collection == "1"),
+  control = glmerControl(optimizer = "bobyqa")
+)
+summary(fit_1)
+Anova(fit_1, type = 3)
+
+emm <- emmeans(fit_1, ~ Session : Manipulation : Stimulation)
+pairs(emm, adjust = "Holm")
+```
+
+# 6. Control check — no tRNS effect in the absence of isolation
+
+Bilateral tracking group, contralateral (left) visual field, sham vs
+active. A null result here means tRNS alone (without manipulation) is
+not driving the effect.
+
+```{r control-check}
+fit_control <- glmer(
+  Response ~ Session * Stimulation * VisualF + (1 | Subject),
+  family  = binomial,
+  data    = dt_filt,
+  subset  = (Collection == "1" & Manipulation == "Control"),
+  control = glmerControl(optimizer = "bobyqa")
+)
+Anova(fit_control, type = 3)
+```
+
+# 7. Pre / During / Post trajectory in the ATTENDED visual field
+
+Combine Pre / Post_1 blocks with the During-isolation trials, then
+model accuracy across the three time points to show that the
+manipulation phase produces a within-session boost that returns to
+baseline at Post.
+
+```{r pre-during-post}
+dt_iso["Session"] <- "During"
+dt_pre_post <- dt %>% filter(Manipulation != "Ignored Visual Field")
+
+# Harmonise column names between the two sources
+colnames(dt_iso)[which(colnames(dt_iso) == "Time.Split")] <- "Time_Split"
+colnames(dt_iso)[which(colnames(dt_iso) == "Isolation")]  <- "Manipulation"
+dt_iso$Manipulation[dt_iso$Manipulation == "Bilateral_Control"] <- "Control"
+dt_iso$Collection <- as.numeric(as.character(dt_iso$Collection))
+dt_iso$Time_Split <- as.character(dt_iso$Time_Split)
+
+dt_iso_full <- dt_iso %>% select(-Time_Split)
+
+custom_order <- c("Subject", "Manipulation", "Stimulation", "Session",
+                  "VisualF", "Response", "Collection")
+dt_iso_full <- dt_iso_full[, custom_order]
+dt_pre_post <- dt_pre_post[, intersect(custom_order, colnames(dt_pre_post))]
+
+dt_pre_during_post <- dplyr::bind_rows(dt_pre_post, dt_iso_full)
+
+fit_3 <- glmer(
+  Response ~ Session * Stimulation * Manipulation + (1 + VisualF | Subject),
+  family  = binomial,
+  data    = dt_pre_during_post,
+  subset  = (Collection == "1" & Session != "Post_2"),
+  control = glmerControl(optimizer = "bobyqa")
+)
+Anova(fit_3, type = 3)
+pairs(emmeans(fit_3, ~ Session), adjust = "Holm")
+```
+
+# 8. Within-window dynamics — 10-min bins
+
+Split the 30-minute isolation into three 10-minute bins to test whether
+accuracy drifts across the window (e.g. fatigue effects).
+
+```{r time-bins}
+fit_4 <- glmer(
+  Response ~ Manipulation * Stimulation * Time_Split + (1 + VisualF | Subject),
+  family  = binomial,
+  data    = dt_iso,
+  subset  = (Collection == "2" & Session != "Post_2"),
+  control = glmerControl(optimizer = "bobyqa")
+)
+Anova(fit_4, type = 3)
+pairs(emmeans(fit_4, ~ Time_Split), adjust = "Holm")
+```
+
+# 9. Left vs right montage — Δ-accuracy in the ignored visual field
+
+Compare the pre-to-post gain (`delta_accuracy`) between the two
+experiments in the ignored visual field only. This is the key
+hemispheric-dissociation test (linear mixed model on subject-level Δ).
+
+```{r delta-lmm}
+my_data_delta_ign <- my_data_delta %>%
+  filter(Manipulation == "Ignored Visual Field", Session == "P1")
+
+fit_7 <- lmer(delta_accuracy ~ Collection * Stimulation + (1 | Subject),
+              data = my_data_delta_ign)
+summary(fit_7)
+Anova(fit_7, type = 3)
+
+emm <- emmeans(fit_7, ~ Collection : Stimulation)
+pairs(emm, adjust = "holm")
+eff_size(emm, sigma = sigma(fit_7), edf = df.residual(fit_7))
+```
+
+# 10. Ipsilateral vs contralateral to the stimulation site
+
+Recode `VisualF` into `Ipsilateral` / `Contralateral` relative to
+stimulation, then fit a three-way `Stimulation × Collection ×
+visual_stim` GLMER on the attended-side trials during isolation.
+
+```{r ipsi-contra}
+dt_iso_full <- dt_iso_full %>%
+  mutate(visual_stim = case_when(
+    Collection == 1 & VisualF == "Right" ~ "Ipsilateral",
+    Collection == 1 & VisualF == "Left"  ~ "Contralateral",
+    Collection == 2 & VisualF == "Right" ~ "Contralateral",
+    Collection == 2 & VisualF == "Left"  ~ "Ipsilateral",
+    TRUE ~ "Other"
+  ))
+
+fit_8 <- glmer(
+  Response ~ Stimulation * Collection * visual_stim + (1 | Subject),
+  family  = binomial,
+  data    = dt_iso_full,
+  subset  = Manipulation == "Attended Visual Field",
+  control = glmerControl(optimizer = "bobyqa")
+)
+Anova(fit_8, type = 3)
+
+emm <- emmeans(fit_8, ~ Stimulation : Collection : visual_stim)
+pairs(emm, adjust = "Holm")
+```

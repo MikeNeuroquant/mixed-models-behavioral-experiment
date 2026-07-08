@@ -1,0 +1,255 @@
+---
+title: "Plots — Hemispheric Dissociation via Attentional Isolation and tRNS"
+author: "Michele Tosi"
+output: html_document
+---
+
+Reproduces the paper figures (Figure 2, 3, 4, 5) from the cleaned
+derivatives. All bars are means with `mean_se` error bars, individual
+subjects overlaid.
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyverse)
+library(lme4)
+library(car)
+library(emmeans)
+library(rstatix)
+library(gridExtra)
+library(ggsignif)
+```
+
+```{r config}
+DERIV   <- "../derivatives"
+OUT_DIR <- "../figures/generated"
+dir.create(OUT_DIR, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Load data + drop baseline outliers (same rule as analysis script)
+
+```{r load}
+my_data       <- read.csv(file.path(DERIV, "long_format_collapsed.csv"))
+dt            <- read.csv(file.path(DERIV, "long_format_single_trial.csv"))
+dt_iso        <- read.csv(file.path(DERIV, "all_isolation_time_split_single_trial.csv"))
+my_data_delta <- read.csv(file.path(DERIV, "delta_long_format_averaged.csv"))
+
+outdect <- my_data %>%
+  filter(Session == "Pre") %>%
+  group_by(Collection, VisualF) %>%
+  identify_outliers(Response)
+drop_ids <- unique(outdect$Subject)
+
+dt            <- dt            %>% filter(!(Subject %in% drop_ids))
+my_data       <- my_data       %>% filter(!(Subject %in% drop_ids))
+my_data_delta <- my_data_delta %>% filter(!(Subject %in% drop_ids))
+dt_iso        <- dt_iso        %>% filter(!(Subject %in% drop_ids))
+
+dt_filt <- dt %>% filter(Session != "Post_2")
+my_data <- my_data %>% filter(Session != "Post_2")
+my_data_delta <- my_data_delta %>% filter(Session != "P2")
+```
+
+# Reusable theme
+
+```{r theme}
+theme_paper <- function(base = 18) {
+  theme(
+    strip.background = element_blank(),
+    panel.background = element_blank(),
+    panel.grid       = element_blank(),
+    axis.line        = element_line(color = "black", size = 1.5),
+    axis.ticks       = element_line(color = "black"),
+    axis.text        = element_text(size = base, face = "bold", color = "black"),
+    axis.title       = element_text(size = base, face = "bold", vjust = 2),
+    axis.title.y     = element_text(size = base, face = "bold",
+                                    margin = margin(r = 12)),
+    plot.title       = element_text(size = base, hjust = 0.5),
+    legend.text      = element_text(size = base + 2),
+    legend.title     = element_text(size = base + 2),
+    legend.key.size  = unit(0.6, "cm"),
+    strip.text.x     = element_text(size = base + 4, hjust = 0.5)
+  )
+}
+```
+
+# Merge Pre / During / Post into a single frame (for Fig. 2 & 3)
+
+```{r merge-pdp}
+dt_iso["Session"] <- "During"
+dt_pre_post <- dt %>% filter(Manipulation != "Ignored Visual Field")
+
+colnames(dt_iso)[which(colnames(dt_iso) == "Time.Split")] <- "Time_Split"
+colnames(dt_iso)[which(colnames(dt_iso) == "Isolation")]  <- "Manipulation"
+dt_iso$Manipulation[dt_iso$Manipulation == "Bilateral_Control"] <- "Control"
+dt_iso$Collection <- as.numeric(as.character(dt_iso$Collection))
+dt_iso$Time_Split <- as.character(dt_iso$Time_Split)
+dt_iso_full <- dt_iso %>% select(-Time_Split)
+
+keep_cols <- c("Subject", "Manipulation", "Stimulation", "Session",
+               "VisualF", "Response", "Collection")
+dt_iso_full <- dt_iso_full[, keep_cols]
+dt_pre_post <- dt_pre_post[, intersect(keep_cols, colnames(dt_pre_post))]
+
+dt_pre_during_post <- dplyr::bind_rows(dt_pre_post, dt_iso_full)
+dt_pre_during_post$Session[dt_pre_during_post$Session == "Post_1"] <- "Post"
+dt_pre_during_post$Session <- factor(dt_pre_during_post$Session,
+                                     levels = c("Pre", "During", "Post"))
+
+my_data_pdp <- dt_pre_during_post %>%
+  group_by(Subject, Manipulation, Stimulation, Session, Collection, VisualF) %>%
+  summarise(Response = mean(Response, na.rm = TRUE), .groups = "drop")
+
+# Cosmetic recoding for the main pre/post plot
+my_data$Manipulation[my_data$Manipulation == "Ignored Visual Field"]  <- "Ignored"
+my_data$Manipulation[my_data$Manipulation == "Attended Visual Field"] <- "Attended"
+my_data$Manipulation <- factor(my_data$Manipulation,
+                               levels = c("Ignored", "Attended", "Control"))
+my_data$Session[my_data$Session == "Post_1"] <- "Post"
+my_data$Session <- factor(my_data$Session, levels = c("Pre", "Post"))
+my_data$Stimulation <- factor(my_data$Stimulation, levels = c("Sham", "Active"))
+
+my_data_delta$Manipulation[my_data_delta$Manipulation == "Ignored Visual Field"]  <- "Ignored"
+my_data_delta$Manipulation[my_data_delta$Manipulation == "Attended Visual Field"] <- "Attended"
+my_data_delta$Manipulation <- factor(my_data_delta$Manipulation,
+                                     levels = c("Ignored", "Attended", "Control"))
+my_data_delta$Stimulation <- factor(my_data_delta$Stimulation,
+                                    levels = c("Sham", "Active"))
+```
+
+# Figure 2 — Pre vs Post accuracy, right montage (Experiment 1)
+
+```{r fig2, fig.height=10, fig.width=14}
+p_fig2 <- ggplot(my_data %>% filter(Collection == "1"),
+                 aes(x = Session, fill = Manipulation, y = Response * 100)) +
+  geom_bar(position = position_dodge(), stat = "summary", fun = mean,
+           width = 0.7, colour = "black") +
+  scale_fill_manual(values = c("#0072B2", "#E69F00", "#009E73")) +
+  facet_wrap(Stimulation ~ Manipulation, scales = "free_x") +
+  stat_summary(geom = "errorbar", fun.data = mean_se,
+               position = position_dodge(), width = 0.3, size = 1) +
+  geom_point(shape = 21, size = 2.5, color = "black") +
+  labs(x = "Session", y = "MOT Accuracy (%)") +
+  coord_cartesian(ylim = c(40, 95)) +
+  scale_y_continuous(breaks = seq(40, 95, by = 10)) +
+  geom_hline(yintercept = 0, linetype = "dashed", size = 0.85) +
+  theme_paper()
+
+ggsave(file.path(OUT_DIR, "Figure2_right_montage.tiff"),
+       plot = p_fig2, width = 17.6, height = 17.6, units = "cm",
+       dpi = 300, device = "tiff", compression = "lzw")
+p_fig2
+```
+
+# Figure 3 — Pre vs Post accuracy, left montage (Experiment 2)
+
+```{r fig3, fig.height=10, fig.width=14}
+p_fig3 <- ggplot(my_data %>% filter(Collection == "2" | Manipulation == "Control"),
+                 aes(x = Session, fill = Manipulation, y = Response * 100)) +
+  geom_bar(position = position_dodge(), stat = "summary", fun = mean,
+           width = 0.7, colour = "black") +
+  scale_fill_manual(values = c("#0072B2", "#E69F00", "#009E73")) +
+  facet_wrap(Stimulation ~ Manipulation, scales = "free_x") +
+  stat_summary(geom = "errorbar", fun.data = mean_se,
+               position = position_dodge(), width = 0.3, size = 1) +
+  geom_point(shape = 21, size = 2.5, color = "black") +
+  labs(x = "Session", y = "MOT Accuracy (%)") +
+  coord_cartesian(ylim = c(40, 95)) +
+  scale_y_continuous(breaks = seq(40, 95, by = 10)) +
+  geom_hline(yintercept = 0, linetype = "dashed", size = 0.85) +
+  theme_paper()
+
+ggsave(file.path(OUT_DIR, "Figure3_left_montage.tiff"),
+       plot = p_fig3, width = 17.6, height = 17.6, units = "cm",
+       dpi = 300, device = "tiff", compression = "lzw")
+p_fig3
+```
+
+# Figure 4 — Δ (Post − Pre) MOT accuracy in the ignored visual field
+
+Compares the pre-to-post gain in the ignored visual field between sham
+and active tRNS, separately per montage. This is the plot that carries
+the paper's headline hemispheric-dissociation result.
+
+```{r fig4, fig.height=7, fig.width=7}
+delta_ign <- my_data_delta %>%
+  filter(Manipulation == "Ignored", Session == "P1")
+delta_ign$Collection <- factor(delta_ign$Collection, levels = c("2", "1"))
+custom_labels <- c("1" = "Right Montage", "2" = "Left Montage")
+
+p_fig4 <- ggplot(delta_ign, aes(x = Stimulation, fill = Stimulation,
+                                y = delta_accuracy * 100)) +
+  geom_bar(position = position_dodge(), stat = "summary", fun = mean,
+           width = 0.55, colour = "black") +
+  scale_fill_manual(values = c("#1B9E77", "#E6AB02")) +
+  facet_wrap(~Collection, scales = "free_x",
+             labeller = labeller(Collection = custom_labels)) +
+  stat_summary(geom = "errorbar", fun.data = mean_se,
+               position = position_dodge(), width = 0.3) +
+  geom_point(alpha = 0.7, shape = 21, size = 3, color = "black") +
+  labs(x = "Stimulation", y = "Change MOT Accuracy (%)") +
+  coord_cartesian(ylim = c(-30, 30)) +
+  scale_y_continuous(breaks = seq(-30, 30, by = 10)) +
+  geom_hline(yintercept = 0, linetype = "dashed", size = 0.85) +
+  theme_paper()
+
+ggsave(file.path(OUT_DIR, "Figure4_delta_ignored.tiff"),
+       plot = p_fig4, width = 17.6, height = 17.6, units = "cm",
+       dpi = 300, device = "tiff", compression = "lzw")
+p_fig4
+```
+
+# Figure 5 — Ipsi vs contralateral (during-isolation, attended side)
+
+Compute the active-minus-sham delta separately for the ipsilateral and
+contralateral hemifield relative to the stimulated hemisphere, during
+the 30-min isolation window (attended side only). This is what makes
+the double dissociation between left and right montages visible.
+
+```{r fig5, fig.height=8, fig.width=12}
+dt_iso_full <- dt_iso_full %>%
+  mutate(visual_stim = case_when(
+    Collection == 1 & VisualF == "Right" ~ "Ipsilateral",
+    Collection == 1 & VisualF == "Left"  ~ "Contralateral",
+    Collection == 2 & VisualF == "Right" ~ "Contralateral",
+    Collection == 2 & VisualF == "Left"  ~ "Ipsilateral",
+    TRUE ~ "Other"
+  ))
+
+dt_iso_collapsed <- dt_iso_full %>%
+  group_by(Subject, Manipulation, Stimulation, Session, Collection,
+           VisualF, visual_stim) %>%
+  summarise(Response = mean(Response, na.rm = TRUE), .groups = "drop")
+
+delta_difference <- dt_iso_collapsed %>%
+  group_by(Subject, Session, Manipulation, Collection, visual_stim, VisualF) %>%
+  filter(n() == 2) %>%
+  summarise(Delta = Response[Stimulation == "Active"] -
+                    Response[Stimulation == "Sham"],
+            .groups = "drop")
+
+delta_difference$Collection <- factor(delta_difference$Collection,
+                                      levels = c("2", "1"))
+
+p_fig5 <- ggplot(delta_difference %>%
+                   filter(Manipulation == "Attended Visual Field"),
+                 aes(x = visual_stim, fill = visual_stim, y = Delta * 100)) +
+  geom_bar(position = position_dodge(width = 0.85), stat = "summary",
+           fun = mean, width = 0.4, colour = "black") +
+  scale_fill_manual(values = c("#D3D3D3", "#333333")) +
+  facet_wrap(~Collection, scales = "free_x",
+             labeller = labeller(Collection = custom_labels)) +
+  stat_summary(geom = "errorbar", fun.data = mean_se,
+               position = position_dodge(width = 0.85), width = 0.3, size = 1) +
+  geom_point(position = position_dodge(width = 0.85),
+             shape = 21, size = 3, color = "black") +
+  labs(x = "Isolation side", y = "% Change MOT accuracy") +
+  coord_cartesian(ylim = c(-25, 20)) +
+  scale_y_continuous(breaks = seq(-25, 20, by = 5)) +
+  geom_hline(yintercept = 0, linetype = "dashed", size = 0.85) +
+  theme_paper()
+
+ggsave(file.path(OUT_DIR, "Figure5_hemisphere_dissociation.tiff"),
+       plot = p_fig5, width = 17.6, height = 12, units = "cm",
+       dpi = 300, device = "tiff", compression = "lzw")
+p_fig5
+```
