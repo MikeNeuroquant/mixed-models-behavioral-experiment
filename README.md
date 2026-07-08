@@ -33,10 +33,6 @@ Participants tracked moving dots on a screen (Multiple Object Tracking, MOT — 
 
 Half of them received real electrical brain stimulation over the frontoparietal cortex during the 30 minutes; half received a sham. In one experiment (n = 39) the stimulation was on the right hemisphere; in a second (n = 26) on the left. Same task, same design, only the treatment site changed.
 
-<p align="center">
-  <img src="figures/Figure1.png" alt="Experimental design: Pre-test, 30-min attentional isolation with tRNS, Post-test" width="800">
-  <br><em>Figure 1 — Timeline of a session, MOT trial structure, and the three between-subject groups (unilateral-left / unilateral-right / bilateral control).</em>
-</p>
 
 ---
 
