@@ -86,27 +86,6 @@ tRNS-attentional-isolation/
 └── README.md
 ```
 
-### Steps
-
-1. **Set up.**
-   Install the Python and R stacks:
-   ```bash
-   pip install -r requirements/requirements.txt
-   Rscript requirements/R_packages.R
-   ```
-2. **Point the scripts at your raw data.**
-   Open the two files in `preprocessing/` and set `RAW_ROOT` to the folder that contains the raw PsychoPy `.txt` logs (organised as `data/<subject>/<Sham|Active>/<session_folder>/*.txt`). Set `OUT_ROOT` to wherever you want the clean datasets to land.
-3. **Build the clean datasets.**
-   ```bash
-   python preprocessing/01_build_pre_post_dataset.py
-   python preprocessing/02_build_manipulation_dataset.py
-   python preprocessing/03_trial_counts.py
-   ```
-4. **Run the models.** Open `analysis/01_glmer_pipeline.Rmd` in RStudio (adjust `DERIV` to point at the derivatives folder from step 2) and knit.
-5. **Reproduce the figures.** Same for `analysis/02_plotting.Rmd`.
-
-Raw data are not shared in this repository (ethics committee approval covers analysis by the authors and controlled sharing on request). Everything necessary to rerun the pipeline once you have the source `.txt` logs is here.
-
 ---
 
 ## A tour of the core model
