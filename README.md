@@ -3,7 +3,6 @@
 
 ---
 
-## Why this repository might be interesting outside academia
 
 Every experiment in this repo is built the same way a modern product experimentation team would run one:
 
